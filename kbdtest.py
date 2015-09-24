@@ -19,24 +19,34 @@ http://www.velocityreviews.com/forums/t320050-reading-keyboard-scan-codes.html
 http://www.thelinuxdaily.com/2010/05/grab-raw-keyboard-input-from-event-device-node-devinputevent/
 """
 
+import sys
 import wx
 from PIL import Image
 import subprocess
+import argparse
+import logging
+
+FORMAT = "[%(levelname)s %(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
+logging.basicConfig(level=logging.ERROR, format=FORMAT)
+logger = logging.getLogger(__name__)
 
 class MyFrame(wx.Frame):
-    keymap = None
 
-    def __init__(self, parent, id, title, width, height):
+    def __init__(self, parent, title, width, height):
         self.img_width = width
         self.img_height = height
-        wx.Frame.__init__(self, parent, id, title, size = (width, height))
+        wx.Frame.__init__(self, parent, -1, title, size=(width, height))
 
+        """
+        self.panel = wx.Panel(self, wx.ID_ANY)
+        self.panel.Bind(wx.EVT_LEFT_DOWN, self.OnMouseClick)
+        self.panel.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
+        """
         self.bitmap = wx.Bitmap('us_qwerty_104key.png')
+        self.bitmap.Bind(wx.EVT_LEFT_DOWN, self.OnMouseClick)
+        self.bitmap.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
         wx.EVT_PAINT(self, self.OnPaint)
-
         self.Centre()
-        self.Bind(wx.EVT_LEFT_DOWN, self.OnMouseClick)
-        self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
 
     def OnPaint(self, event):
         dc = wx.PaintDC(self)
@@ -44,32 +54,54 @@ class MyFrame(wx.Frame):
         self.dc = dc
 
     def OnKeyDown(self, event):
-        print event.ControlDown()
-        print event.GetKeyCode()
-        print event.GetRawKeyCode()
+        logger.debug(event)
+        logger.debug(dir(event))
+        logger.debug(vars(event))
+        print(event.ControlDown())
+        print(event.GetKeyCode())
+        print(event.GetRawKeyCode())
+        event.Skip()
+        return
 
     def OnMouseClick(self, event):
         pos = event.GetPosition()
         x = pos[0]
         y = pos[1]
-        print pos
+        print(pos)
         self.dc.SetBrush(wx.Brush('green'))
         self.dc.DrawCircle(x, y, 10)
 
     def run(self):
-        self.proc = subprocess.Popen("sudo /usr/bin/showkey", shell = True, stdout = subprocess.PIPE)
-        inline = self.proc.stdout.readline()
+        pass
 
 class MyApp(wx.App):
     def OnInit(self):
         im = Image.open('us_qwerty_104key.png')
         ims = im.size
-        frame = MyFrame(None, -1, 'kbdtest', ims[0], ims[1])
-        im = None
+        frame = MyFrame(None, 'kbdtest', ims[0], ims[1])
         frame.Show(True)
-        self.SetTopWindow(frame)
-        frame.run()
+        frame.SetFocus()
         return True
 
-app = MyApp(0)
-app.MainLoop()
+def parse_args(argv):
+    """
+    parse arguments/options
+
+    this uses the new argparse module instead of optparse
+    see: <https://docs.python.org/2/library/argparse.html>
+    """
+    p = argparse.ArgumentParser(description='Show keyboard key presses to test'
+                                ' a keyboard.')
+    p.add_argument('-v', '--verbose', dest='verbose', action='count', default=0,
+                   help='verbose output. specify twice for debug-level output.')
+    args = p.parse_args(argv)
+    return args
+
+if __name__ == "__main__":
+    args = parse_args(sys.argv[1:])
+    if args.verbose > 1:
+        logger.setLevel(logging.DEBUG)
+    elif args.verbose > 0:
+        logger.setLevel(logging.INFO)
+    app = MyApp(0)
+    app.MainLoop()
